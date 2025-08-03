@@ -5,6 +5,7 @@ An easy to use tool for changing the in-game language
 1. Download the latest version from [releases](https://github.com/nie4/hsr-lang-patcher/releases)
 2. Move `hsr-lang-patcher.exe` to the same folder where the game is located
 3. Run the .exe and follow the shown instructions
+4. If you want to use voices make sure to run the client first before copying the audio folder to prevent it from being removed
 
 ## CLI usage:
 ```
