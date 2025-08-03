@@ -45,33 +45,25 @@ impl AppContext {
             Select::new("What language should be used for voice?", langs.clone()).prompt()?;
         let text_ans = Select::new("What language should be used for text?", langs).prompt()?;
 
-        // Change OS text lang
-        parsed_excel
-            .iter_mut()
-            .find(|row| row.area == Some("os".to_string()) && row.r#type == None)
-            .ok_or_eyre("OS AllowedLanguageRow not found")?
-            .default_language = Some(text_ans.to_string());
+        // type None is text
+        // type Some(1) is voice
+        for (area, r#type, lang) in [
+            ("os", None, &text_ans),
+            ("cn", Some(1), &voice_ans),
+            ("os", Some(1), &voice_ans),
+            ("cn", None, &text_ans),
+        ] {
+            let target_row = parsed_excel
+                .iter_mut()
+                .find(|row| row.area == Some(area.to_string()) && row.r#type == r#type)
+                .ok_or_eyre(format!(
+                    "{} AllowedLanguageRow not found",
+                    area.to_uppercase()
+                ))?;
 
-        // Change OS voice lang
-        parsed_excel
-            .iter_mut()
-            .find(|row| row.area == Some("os".to_string()) && row.r#type == Some(1))
-            .ok_or_eyre("OS AllowedLanguageRow not found")?
-            .default_language = Some(voice_ans.to_string());
-
-        // Change CN text lang
-        parsed_excel
-            .iter_mut()
-            .find(|row| row.area == Some("cn".to_string()) && row.r#type == None)
-            .ok_or_eyre("CN AllowedLanguageRow not found")?
-            .default_language = Some(text_ans.to_string());
-
-        // Change CN voice lang
-        parsed_excel
-            .iter_mut()
-            .find(|row| row.area == Some("cn".to_string()) && row.r#type == Some(1))
-            .ok_or_eyre("CN AllowedLanguageRow not found")?
-            .default_language = Some(voice_ans.to_string());
+            target_row.default_language = Some(lang.to_string());
+            target_row.language_list = Some(vec![lang.to_string()]);
+        }
 
         let data = allowed_language.serialize_rows(parsed_excel)?;
 
@@ -82,7 +74,16 @@ impl AppContext {
 
         let mut target_file = OpenOptions::new().read(true).write(true).open(file_path)?;
         target_file.seek(SeekFrom::Start(excel_data.offset as u64))?;
-        target_file.write_all(&data)?; // The size is the same since we dont change the arrays
+        target_file.write_all(&data)?;
+
+        if data.len() < excel_data.size as usize {
+            // Our modified excel is smaller so lets fill the other bytes with zeros
+            // I dont think its possible to go over excel_data.size without changing the DesignData struct values and we dont want that
+
+            let remaining_bytes = excel_data.size as usize - data.len();
+            let zeros = vec![0u8; remaining_bytes];
+            target_file.write_all(&zeros)?;
+        }
 
         println!("{}", "Done".bold().green());
 
