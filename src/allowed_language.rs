@@ -4,12 +4,11 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use crate::Result;
 use byteorder::{ReadBytesExt, WriteBytesExt};
-use eyre::Result;
 use varint_rs::{VarintReader, VarintWriter};
 
 use crate::{
-    STREAMING_ASSETS_PATH,
     design_data::{DataEntry, FileEntry},
 };
 
@@ -77,19 +76,19 @@ impl AllowedLanguageRow {
 }
 
 pub struct AllowedLanguage<'a> {
-    game_path: PathBuf,
+    design_data_dir: PathBuf,
     excel_data_entry: &'a DataEntry,
     excel_file_entry: &'a FileEntry,
 }
 
 impl<'a> AllowedLanguage<'a> {
     pub fn new<T: AsRef<Path>>(
-        game_path: T,
+        design_data_dir: T,
         excel_data_entry: &'a DataEntry,
         excel_file_entry: &'a FileEntry,
     ) -> Self {
         Self {
-            game_path: game_path.as_ref().to_path_buf(),
+            design_data_dir: design_data_dir.as_ref().to_path_buf(),
             excel_data_entry,
             excel_file_entry,
         }
@@ -111,10 +110,9 @@ impl<'a> AllowedLanguage<'a> {
     }
 
     pub fn parse(&self) -> Result<Vec<AllowedLanguageRow>> {
-        let excel_path = self.game_path.join(format!(
-            "{STREAMING_ASSETS_PATH}/{}.bytes",
-            self.excel_file_entry.file_hash
-        ));
+        let excel_path = self
+            .design_data_dir
+            .join(format!("{}.bytes", self.excel_file_entry.file_hash));
 
         let mut excel_file = BufReader::new(File::open(excel_path)?);
         excel_file.seek(SeekFrom::Start(self.excel_data_entry.offset as u64))?;

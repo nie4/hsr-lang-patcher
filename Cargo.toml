@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 byteorder = "1.5.0"
 crossterm = "0.29.0"
-eyre = "0.6.12"
+anyhow = "1.0.100"
 hex = "0.4.3"
 inquire = "0.7.5"
 varint-rs = { version = "2.2.0", features = ["signed"] }

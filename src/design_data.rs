@@ -4,11 +4,10 @@ use std::{
     path::Path,
 };
 
+use crate::Result;
 use byteorder::{BE, LE, ReadBytesExt};
-use eyre::Result;
 
-use crate::STREAMING_ASSETS_PATH;
-
+#[allow(unused)]
 #[derive(Default, Debug)]
 pub struct DataEntry {
     pub name_hash: i32,
@@ -16,6 +15,7 @@ pub struct DataEntry {
     pub offset: i32,
 }
 
+#[allow(unused)]
 #[derive(Default, Debug)]
 pub struct FileEntry {
     pub name_hash: i32,
@@ -26,6 +26,7 @@ pub struct FileEntry {
     pub unk_1: u8,
 }
 
+#[allow(unused)]
 #[derive(Default, Debug)]
 pub struct DesignDataHeader {
     pub unk_1: u64,
@@ -39,9 +40,8 @@ pub struct DesignData {
 }
 
 impl DesignData {
-    pub fn parse<T: AsRef<Path>>(game_path: T, index_hash: &str) -> Result<Self> {
-        let design_v_path = format!("{STREAMING_ASSETS_PATH}/DesignV_{index_hash}.bytes",);
-        let path = game_path.as_ref().join(design_v_path);
+    pub fn parse<T: AsRef<Path>>(design_v_file: T) -> Result<Self> {
+        let path = design_v_file.as_ref();
 
         let file = File::open(path)?;
         let mut reader = BufReader::new(&file);
