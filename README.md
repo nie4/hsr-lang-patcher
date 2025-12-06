@@ -9,8 +9,28 @@ An easy to use tool for changing the in-game language
 
 ## CLI usage:
 ```
-hsr-lang-patcher.exe [GAME_PATH]
+hsr-lang-patcher [GAME_PATH | DESIGNDATA_PATH] -lang:0XX,1YY
 ```
+
+### Notes
+- If `hsr-lang-patcher` is placed in the **correct game directory**, you can run it **without any arguments**, and it will automatically detect the required paths.
+- If you provide arguments manually, use the format described below.
+
+### Arguments
+- **GAME_PATH / DESIGNDATA_PATH**  
+  The first argument can be either:
+  - The path to the game's installation directory, **or**
+  - The path directly to the `DesignData` folder.
+
+- **-lang:0XX,1YY** *(optional)*  
+  Sets both text and voice languages.  
+  The `-lang:` argument **must always include both modes**, separated by a comma.  
+  - `0` = text language  
+  - `1` = voice language  
+  - `XX` / `YY` are two-letter language codes (e.g., `cn`, `en`, `kr`, `jp`)
+
+  **Example:**
+  - `-lang:0en,1en` -> English text + English voice  
 
 ## Compiling:
 ```bash
@@ -18,7 +38,7 @@ cargo build -r
 ```
 
 ## Requirements:
-- [Nightly rust](https://www.rust-lang.org/tools/install) for compiling
+- [rust](https://www.rust-lang.org/tools/install) for compiling
 
 ## References
 - [HSR_Downloader](https://github.com/Hiro420/HSR_Downloader)
