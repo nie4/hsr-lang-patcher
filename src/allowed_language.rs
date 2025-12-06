@@ -14,10 +14,10 @@ use crate::{
 
 #[derive(Default, Debug)]
 pub struct AllowedLanguageRow {
-    pub area: Option<String>,
-    pub r#type: Option<u8>,
-    pub language_list: Option<Vec<String>>,
-    pub default_language: Option<String>,
+    area: Option<String>,
+    r#type: Option<u8>,
+    language_list: Option<Vec<String>>,
+    default_language: Option<String>,
 }
 
 impl AllowedLanguageRow {
@@ -72,6 +72,19 @@ impl AllowedLanguageRow {
             Self::write_string(cursor, s)?;
         }
         Ok(())
+    }
+
+    pub fn update_language(&mut self, lang: &str) {
+        self.default_language = Some(lang.to_string());
+        self.language_list = Some(vec![lang.to_string()]);
+    }
+
+    pub fn area(&self) -> Option<String> {
+        self.area.clone()
+    }
+
+    pub fn r#type(&self) -> Option<u8> {
+        self.r#type
     }
 }
 
