@@ -8,11 +8,12 @@ byteorder = "1.5.0"
 crossterm = "0.29.0"
 anyhow = "1.0.100"
 hex = "0.4.3"
-inquire = "0.7.5"
+inquire = "0.9.1"
 varint-rs = { version = "2.2.0", features = ["signed"] }
 
 [profile.release]
 strip = true
 lto = true
-opt-level = 3
+opt-level = "z"
 codegen-units = 1
+panic = "abort"
