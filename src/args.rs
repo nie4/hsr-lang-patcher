@@ -3,18 +3,16 @@ use std::env;
 use anyhow::anyhow;
 use inquire::Select;
 
-use crate::Result;
-
-const VALID_LANGUAGES: [&str; 4] = ["cn", "en", "kr", "jp"];
-
-pub struct Args {
-    pub game_path: Option<String>,
-    pub languages: Option<Languages>,
-}
+use crate::{Result, allowed_language::AllowedLanguage};
 
 pub struct Languages {
     pub text: &'static str,
     pub voice: &'static str,
+}
+
+pub struct Args {
+    pub game_path: Option<String>,
+    pub languages: Option<Languages>,
 }
 
 impl Args {
@@ -49,12 +47,12 @@ impl Args {
 
         let voice = Select::new(
             "What language should be used for voice?",
-            VALID_LANGUAGES.to_vec(),
+            AllowedLanguage::VALID_LANGUAGES.to_vec(),
         )
         .prompt()?;
         let text = Select::new(
             "What language should be used for text?",
-            VALID_LANGUAGES.to_vec(),
+            AllowedLanguage::VALID_LANGUAGES.to_vec(),
         )
         .prompt()?;
 
@@ -65,7 +63,7 @@ impl Args {
     }
 
     fn validate_language(lang: &str) -> Result<&'static str> {
-        VALID_LANGUAGES
+        AllowedLanguage::VALID_LANGUAGES
             .iter()
             .find(|&&l| l == lang)
             .ok_or_else(|| anyhow!("Invalid language '{lang}'. Must be cn, en, kr, or jp"))

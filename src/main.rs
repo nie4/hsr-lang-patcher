@@ -1,24 +1,28 @@
 use std::{
     env,
-    fs::File,
-    io::{self, Read, Seek, SeekFrom, Write},
-    path::PathBuf,
+    fs::{self, File},
+    io::{Seek, SeekFrom, Write, stdin, stdout},
+    path::{Path, PathBuf},
     process,
 };
 
 use anyhow::{Context, anyhow};
 use crossterm::{ExecutableCommand, style::Stylize, terminal::SetTitle};
 
-use crate::{allowed_language::AllowedLanguage, args::Args, design_data::DesignData};
+use crate::{
+    allowed_language::{AllowedLanguage, AllowedLanguageRow},
+    args::Args,
+    design_index::DesignIndex,
+};
 
 mod allowed_language;
 mod args;
-mod design_data;
+mod design_index;
 
 pub type Result<T> = anyhow::Result<T>;
 
 fn main() {
-    let _ = io::stdout().execute(SetTitle(format!(
+    let _ = stdout().execute(SetTitle(format!(
         "{} v{} | Made by nie",
         env!("CARGO_PKG_NAME"),
         env!("CARGO_PKG_VERSION")
@@ -42,54 +46,42 @@ fn main() {
 
 pub fn run(should_pause: bool) -> Result<()> {
     let args = Args::parse()?;
+    let design_data_path = get_design_data_path(args.game_path.as_deref())?;
 
-    let design_data_dir = get_design_data_dir(args.game_path.as_deref())?;
-    let index_hash = get_index_hash(&design_data_dir).with_context(|| {
+    let m_design_v_path = design_data_path.join("M_DesignV.bytes");
+    let index_hash = get_index_hash(&fs::read(&m_design_v_path)?).with_context(|| {
         format!(
-            "Failed to get index hash. Are you sure this is the correct directory: '{}'?",
-            design_data_dir.display()
+            "Failed to get index hash. Is '{}' the correct directory?",
+            m_design_v_path.display()
         )
     })?;
 
-    let design_v_file = design_data_dir.join(format!("DesignV_{index_hash}.bytes"));
-    let design_data = DesignData::parse(&design_v_file)
-        .with_context(|| format!("Failed to parse {}", design_v_file.display()))?;
+    let design_v_data = fs::read(design_data_path.join(format!("DesignV_{index_hash}.bytes")))?;
+    let design_index = DesignIndex::parse(&design_v_data).context("Failed to parse DesignV")?;
 
-    let (excel_data, excel_file) = design_data
-        .find_excel_data_and_file(-515329346)
+    let (data_entry, file_entry) = design_index
+        .find_by_hash(-515329346)
         .context("Failed to find the correct excel lol")?;
 
-    let allowed_language = AllowedLanguage::new(&design_data_dir, excel_data, excel_file);
-    let mut parsed_excel = allowed_language.parse()?;
+    let bytes_path = design_data_path.join(format!("{}.bytes", file_entry.file_hash));
+
+    let allowed_language = AllowedLanguage::new(data_entry, &bytes_path);
+    let mut allowed_language_rows = allowed_language.parse()?;
 
     let (text_lang, voice_lang) = args.get_or_prompt_languages()?;
+    patch_languages(&mut allowed_language_rows, text_lang, voice_lang)?;
 
-    // type None is text
-    // type Some(1) is voice
-    for (area, r#type, lang) in [
-        ("os", None, &text_lang),
-        ("cn", Some(1), &voice_lang),
-        ("os", Some(1), &voice_lang),
-        ("cn", None, &text_lang),
-    ] {
-        parsed_excel
-            .iter_mut()
-            .find(|row| row.area() == Some(area.to_string()) && row.r#type() == r#type)
-            .with_context(|| format!("{} AllowedLanguageRow not found", area.to_uppercase()))?
-            .update_language(lang);
-    }
+    let data = allowed_language.serialize_rows(allowed_language_rows)?;
 
-    let data = allowed_language.serialize_rows(parsed_excel)?;
-    let file_path = design_data_dir.join(format!("{}.bytes", excel_file.file_hash));
-
-    write_excel_data(
-        &file_path,
-        excel_data.offset as u64,
+    write_data(
+        &bytes_path,
+        data_entry.offset as u64,
         &data,
-        excel_data.size as usize,
+        data_entry.size as usize,
     )?;
 
     println!("{}", "Done".bold().green());
+
     if should_pause {
         wait_for_exit();
     }
@@ -97,28 +89,45 @@ pub fn run(should_pause: bool) -> Result<()> {
     Ok(())
 }
 
-fn get_index_hash(design_data_dir: &PathBuf) -> Result<String> {
-    let path = design_data_dir.join("M_DesignV.bytes");
-    let mut file = File::open(path)?;
+fn patch_languages(
+    rows: &mut [AllowedLanguageRow],
+    text_lang: &str,
+    voice_lang: &str,
+) -> Result<()> {
+    for (area, lang, voice) in [
+        ("os", text_lang, false),
+        ("cn", voice_lang, true),
+        ("os", voice_lang, true),
+        ("cn", text_lang, false),
+    ] {
+        rows.iter_mut()
+            .find(|row| {
+                row.area() == Some(area) && if voice { row.is_voice() } else { row.is_text() }
+            })
+            .with_context(|| format!("{} AllowedLanguageRow not found", area.to_uppercase()))?
+            .update_language(lang);
+    }
 
-    file.seek(SeekFrom::Start(0x1C))?;
+    Ok(())
+}
 
-    let mut hash = [0u8; 0x10];
+fn get_index_hash(data: &[u8]) -> Result<String> {
+    let mut hash = [0u8; 16];
     let mut index = 0;
-    for _ in 0..4 {
-        let mut chunk = [0u8; 4];
-        file.read_exact(&mut chunk)?;
-
-        for byte_pos in (0..4).rev() {
-            hash[index] = chunk[byte_pos];
+    for i in 0..4 {
+        let offset = 0x1C + (i * 4);
+        let chunk = data
+            .get(offset..offset + 4)
+            .context("M_DesignV.bytes is too short")?;
+        for &byte in chunk.iter().rev() {
+            hash[index] = byte;
             index += 1;
         }
     }
-
     Ok(hex::encode(hash))
 }
 
-fn get_design_data_dir(arg: Option<&str>) -> Result<PathBuf> {
+fn get_design_data_path(arg: Option<&str>) -> Result<PathBuf> {
     let path = arg.map_or(env::current_dir()?, |p| PathBuf::from(p));
 
     if path.join("StarRail.exe").is_file() {
@@ -134,22 +143,17 @@ fn get_design_data_dir(arg: Option<&str>) -> Result<PathBuf> {
         Make sure to either: \n\
         - Run this .exe from the game's root folder\n\
         - Pass the game's root path as an argument\n\
-        - Pass the DesignData folder path as an argument"
+        - Pass the StreamingAssets/DesignData folder path as an argument"
     ))
 }
 
-fn write_excel_data(
-    file_path: &PathBuf,
-    offset: u64,
-    data: &[u8],
-    excel_size: usize,
-) -> Result<()> {
+fn write_data(file_path: &Path, offset: u64, data: &[u8], data_size: usize) -> Result<()> {
     let mut file = File::options().read(true).write(true).open(file_path)?;
-    file.seek(io::SeekFrom::Start(offset))?;
+    file.seek(SeekFrom::Start(offset))?;
     file.write_all(data)?;
 
-    if data.len() < excel_size {
-        file.write_all(&vec![0u8; excel_size - data.len()])?;
+    if data.len() < data_size {
+        file.write_all(&vec![0; data_size - data.len()])?;
     }
 
     Ok(())
@@ -157,6 +161,6 @@ fn write_excel_data(
 
 fn wait_for_exit() {
     print!("Press enter to exit");
-    let _ = io::stdout().flush();
-    let _ = io::stdin().read_line(&mut String::new());
+    let _ = stdout().flush();
+    let _ = stdin().read_line(&mut String::new());
 }

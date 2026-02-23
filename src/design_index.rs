@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    io::{BufReader, Cursor, Read},
-    path::Path,
-};
+use std::io::{BufReader, Cursor, Read};
 
 use crate::Result;
 use byteorder::{BE, LE, ReadBytesExt};
@@ -28,30 +24,23 @@ pub struct FileEntry {
 
 #[allow(unused)]
 #[derive(Default, Debug)]
-pub struct DesignDataHeader {
+pub struct DesignIndex {
     pub unk_1: u64,
     pub file_count: u32,
     pub unk_2: u32,
     pub files: Vec<FileEntry>,
 }
 
-pub struct DesignData {
-    header: DesignDataHeader,
-}
-
-impl DesignData {
-    pub fn parse<T: AsRef<Path>>(design_v_file: T) -> Result<Self> {
-        let path = design_v_file.as_ref();
-
-        let file = File::open(path)?;
-        let mut reader = BufReader::new(&file);
+impl DesignIndex {
+    pub fn parse(data: &[u8]) -> Result<Self> {
+        let mut reader = BufReader::new(data);
 
         let mut buffer = Vec::new();
         reader.read_to_end(&mut buffer)?;
 
         let mut cursor = Cursor::new(buffer);
 
-        let mut header = DesignDataHeader {
+        let mut header = DesignIndex {
             unk_1: cursor.read_u64::<LE>()?,
             file_count: cursor.read_u32::<BE>()?,
             unk_2: cursor.read_u32::<LE>()?,
@@ -87,14 +76,14 @@ impl DesignData {
             });
         }
 
-        Ok(Self { header })
+        Ok(header)
     }
 
-    pub fn find_excel_data_and_file(&self, target_hash: i32) -> Option<(&DataEntry, &FileEntry)> {
-        self.header.files.iter().find_map(|file| {
+    pub fn find_by_hash(&self, hash: i32) -> Option<(&DataEntry, &FileEntry)> {
+        self.files.iter().find_map(|file| {
             file.entries
                 .iter()
-                .find(|entry| entry.name_hash == target_hash)
+                .find(|entry| entry.name_hash == hash)
                 .map(|entry| (entry, file))
         })
     }
