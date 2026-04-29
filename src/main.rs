@@ -21,7 +21,16 @@ mod design_index;
 
 pub type Result<T> = anyhow::Result<T>;
 
+fn print_banner() {
+    println!(
+        "{} v{} : Made by nie\n",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION")
+    );
+}
+
 fn main() {
+    print_banner();
     let _ = stdout().execute(SetTitle(format!(
         "{} v{} | Made by nie",
         env!("CARGO_PKG_NAME"),
