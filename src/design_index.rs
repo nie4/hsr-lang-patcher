@@ -19,7 +19,7 @@ pub struct FileEntry {
     pub read_size: u64,
     pub entry_count: u32,
     pub entries: Vec<DataEntry>,
-    pub unk_1: u8,
+    pub unk_1: u32,
 }
 
 #[allow(unused)]
@@ -33,6 +33,10 @@ pub struct DesignIndex {
 
 impl DesignIndex {
     pub fn parse(data: &[u8]) -> Result<Self> {
+        Self::parse_data(data, false).or_else(|_| Self::parse_data(data, true))
+    }
+
+    fn parse_data(data: &[u8], legacy: bool) -> Result<Self> {
         let mut reader = BufReader::new(data);
 
         let mut buffer = Vec::new();
@@ -72,7 +76,11 @@ impl DesignIndex {
                 read_size,
                 entry_count,
                 entries,
-                unk_1: cursor.read_u8()?,
+                unk_1: if legacy {
+                    cursor.read_u8()? as u32
+                } else {
+                    cursor.read_u24::<BE>()?
+                },
             });
         }
 
