@@ -5,22 +5,23 @@ use std::{
 };
 
 use crate::Result;
+use anyhow::Context;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 use varint_rs::{VarintReader, VarintWriter};
 
-use crate::design_index::DataEntry;
-
 pub struct AllowedLanguage<'a> {
-    data_entry: &'a DataEntry,
+    size: i32,
+    offset: i32,
     bytes_path: &'a Path,
 }
 
 impl<'a> AllowedLanguage<'a> {
     pub const VALID_LANGUAGES: [&'static str; 4] = ["cn", "en", "kr", "jp"];
 
-    pub fn new(data_entry: &'a DataEntry, bytes_path: &'a Path) -> Self {
+    pub fn new(size: i32, offset: i32, bytes_path: &'a Path) -> Self {
         Self {
-            data_entry,
+            size,
+            offset,
             bytes_path,
         }
     }
@@ -41,11 +42,17 @@ impl<'a> AllowedLanguage<'a> {
     }
 
     pub fn parse(&self) -> Result<Vec<AllowedLanguageRow>> {
-        let mut excel_file = BufReader::new(File::open(self.bytes_path)?);
-        excel_file.seek(SeekFrom::Start(self.data_entry.offset as u64))?;
+        let bytes_file = File::open(self.bytes_path).with_context(|| {
+            format!(
+                "Got invalid .bytes path from design data: {}",
+                self.bytes_path.display()
+            )
+        })?;
+        let mut buf_reader = BufReader::new(bytes_file);
+        buf_reader.seek(SeekFrom::Start(self.offset as u64))?;
 
-        let mut buffer = vec![0u8; self.data_entry.size as usize];
-        excel_file.read_exact(&mut buffer)?;
+        let mut buffer = vec![0u8; self.size as usize];
+        buf_reader.read_exact(&mut buffer)?;
 
         let mut cursor = Cursor::new(buffer);
 

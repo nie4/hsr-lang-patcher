@@ -12,12 +12,11 @@ use crossterm::{ExecutableCommand, style::Stylize, terminal::SetTitle};
 use crate::{
     allowed_language::{AllowedLanguage, AllowedLanguageRow},
     args::Args,
-    design_index::DesignIndex,
 };
 
 mod allowed_language;
 mod args;
-mod design_index;
+mod design;
 
 pub type Result<T> = anyhow::Result<T>;
 
@@ -66,15 +65,12 @@ pub fn run(should_pause: bool) -> Result<()> {
     })?;
 
     let design_v_data = fs::read(design_data_path.join(format!("DesignV_{index_hash}.bytes")))?;
-    let design_index = DesignIndex::parse(&design_v_data).context("Failed to parse DesignV")?;
+    let target = design::find_target(&design_v_data)
+        .context("All parse variants failed, please report an issue at https://github.com/nie4/hsr-lang-patcher/issues")?;
 
-    let (data_entry, file_entry) = design_index
-        .find_by_hash(-515329346)
-        .context("Failed to find the correct excel lol")?;
+    let bytes_path = design_data_path.join(format!("{}.bytes", target.parent_file_hash));
 
-    let bytes_path = design_data_path.join(format!("{}.bytes", file_entry.file_hash));
-
-    let allowed_language = AllowedLanguage::new(data_entry, &bytes_path);
+    let allowed_language = AllowedLanguage::new(target.size, target.offset, &bytes_path);
     let mut allowed_language_rows = allowed_language.parse()?;
 
     let (text_lang, voice_lang) = args.get_or_prompt_languages()?;
@@ -84,9 +80,9 @@ pub fn run(should_pause: bool) -> Result<()> {
 
     write_data(
         &bytes_path,
-        data_entry.offset as u64,
+        target.offset as u64,
         &data,
-        data_entry.size as usize,
+        target.size as usize,
     )?;
 
     println!("{}", "Done".bold().green());
