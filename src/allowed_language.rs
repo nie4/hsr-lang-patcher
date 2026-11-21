@@ -4,10 +4,11 @@ use std::{
     path::Path,
 };
 
-use crate::Result;
 use anyhow::Context;
 use byteorder::{ReadBytesExt, WriteBytesExt};
 use varint_rs::{VarintReader, VarintWriter};
+
+use crate::Result;
 
 pub struct AllowedLanguage<'a> {
     size: i32,

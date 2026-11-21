@@ -7,7 +7,6 @@ use std::{
 };
 
 use anyhow::{Context, anyhow};
-use crossterm::{ExecutableCommand, style::Stylize, terminal::SetTitle};
 
 use crate::{
     allowed_language::{AllowedLanguage, AllowedLanguageRow},
@@ -20,28 +19,51 @@ mod design;
 
 pub type Result<T> = anyhow::Result<T>;
 
-fn print_banner() {
-    println!(
+fn set_console_title(s: &str) {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::ffi::OsStrExt;
+
+        unsafe extern "system" {
+            fn SetConsoleTitleW(title: *const u16) -> i32;
+        }
+
+        let title: Vec<u16> = std::ffi::OsStr::new(s)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        unsafe {
+            SetConsoleTitleW(title.as_ptr());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        use std::io::{self, Write};
+
+        let mut stdout = io::stdout().lock();
+        let _ = write!(stdout, "\x1b]0;{s}\x07");
+        let _ = stdout.flush();
+    }
+}
+
+fn main() {
+    let watermark = format!(
         "{} v{} : Made by nie\n",
         env!("CARGO_PKG_NAME"),
         env!("CARGO_PKG_VERSION")
     );
-}
 
-fn main() {
-    print_banner();
-    let _ = stdout().execute(SetTitle(format!(
-        "{} v{} | Made by nie",
-        env!("CARGO_PKG_NAME"),
-        env!("CARGO_PKG_VERSION")
-    )));
+    println!("{watermark}");
+    set_console_title(&watermark);
 
     let should_pause = env::args().len() == 1;
 
     match run(should_pause) {
         Ok(_) => process::exit(0),
         Err(e) => {
-            eprintln!("{}: {:?}", "error".red(), e);
+            eprintln!("\x1b[91merror\x1b[0m: {e:?}");
 
             if should_pause {
                 wait_for_exit();
@@ -68,7 +90,7 @@ pub fn run(should_pause: bool) -> Result<()> {
     let target = design::find_target(&design_v_data)
         .context("All parse variants failed, please report an issue at https://github.com/nie4/hsr-lang-patcher/issues")?;
 
-    let bytes_path = design_data_path.join(format!("{}.bytes", target.parent_file_hash));
+    let bytes_path = design_data_path.join(format!("{}.bytes", target.file_md5));
 
     let allowed_language = AllowedLanguage::new(target.size, target.offset, &bytes_path);
     let mut allowed_language_rows = allowed_language.parse()?;
@@ -85,7 +107,7 @@ pub fn run(should_pause: bool) -> Result<()> {
         target.size as usize,
     )?;
 
-    println!("{}", "Done".bold().green());
+    println!("\x1b[1;32mDone\x1b[0m");
 
     if should_pause {
         wait_for_exit();
